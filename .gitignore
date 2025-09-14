@@ -1,0 +1,38 @@
+# Python cache files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environment
+venv/
+env/
+.venv/
+
+# Flask instance folder (if you create one)
+instance/
+
+# Pytest cache
+.pytest_cache/
+
+# MySQL / DB dumps
+*.sql
+
+# IDE/editor files
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Pipenv / Poetry / other package managers
+Pipfile.lock
+poetry.lock
+
+# Optional: Ignore environment variables file
+.env
