@@ -1,13 +1,18 @@
+import os
 import mysql.connector
 from mysql.connector import pooling
+from dotenv import load_dotenv
 
-# Database config for Railway
+# Load environment variables from backend/.env
+load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), "../.env"))
+
+# Database config for Railway (from .env)
 db_config = {
-    "host": "tramway.proxy.rlwy.net",
-    "port": 17682,
-    "user": "root",
-    "password": "ORIEdIXeemgmECRvQVhlDOFqiTcCneef",
-    "database": "railway"
+    "host": os.getenv("DB_HOST"),
+    "port": int(os.getenv("DB_PORT")),  # default to 3306 if not set
+    "user": os.getenv("DB_USER"),
+    "password": os.getenv("DB_PASS"),
+    "database": os.getenv("DB_NAME")
 }
 
 # Global pool object
