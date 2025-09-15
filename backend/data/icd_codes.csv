@@ -18,4 +18,4 @@ id,namaste_code,icd11_code,icd11_display_name,mapping_type
 17,NAM013,GB60,Urinary obstruction,Biomed
 18,NAM014,1D40,Viral fever,Biomed
 19,NAM015,TM2-11030,Constipation due to Vata imbalance,TM2
-20,NAM020,DB90,Viral hepatitis,Biomed
+20,NAM020,DB90,Viral hepatitis,Biomed 

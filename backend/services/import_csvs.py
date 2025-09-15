@@ -43,6 +43,7 @@ ON DUPLICATE KEY UPDATE
     cur.close()
     conn.close()
     print(f"Imported {len(rows)} namaste rows (table reset).")
+    #..
 
 def import_icd11_mappings(csv_path):
     df = pd.read_csv(csv_path, dtype=str).fillna("")
