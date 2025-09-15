@@ -1,0 +1,21 @@
+id,namaste_code,icd11_code,icd11_display_name,mapping_type
+1,NAM001,TM2-11001,Digestive disorder due to imbalance,TM2
+2,NAM002,5A11,Type 2 Diabetes Mellitus,Biomed
+3,NAM003,TM2-22010,Respiratory disorder pattern,TM2
+4,NAM003,CA40,Asthma,Biomed
+5,NAM004,TM2-19999,Digestive disorder (unspecified),TM2-fallback
+6,NAM005,8B60,Facial paralysis (Bell’s palsy),Biomed
+7,NAM006,TM2-13005,Joint disorder due to Ama imbalance,TM2
+8,NAM006,FA20,Rheumatoid arthritis,Biomed
+9,NAM007,TM2-22020,Cough due to dosha imbalance,TM2
+10,NAM007,CA23,Chronic bronchitis,Biomed
+11,NAM008,3A00,Iron deficiency anemia,Biomed
+12,NAM009,TM2-31015,Hemorrhagic disorder pattern,TM2
+13,NAM009,3B60,Hematemesis,Biomed
+14,NAM010,TM2-11015,Malabsorption syndrome (dosha type),TM2
+15,NAM011,MG20,Generalized edema,Biomed
+16,NAM012,6C40,Alcohol dependence,Biomed
+17,NAM013,GB60,Urinary obstruction,Biomed
+18,NAM014,1D40,Viral fever,Biomed
+19,NAM015,TM2-11030,Constipation due to Vata imbalance,TM2
+20,NAM020,DB90,Viral hepatitis,Biomed

@@ -1,0 +1,21 @@
+id,code,display_name,category
+1,NAM001,Agnimandya,Digestive
+2,NAM002,Prameha,Metabolic
+3,NAM003,Tamaka Shwasa,Respiratory
+4,NAM004,Vataja Gulma,Digestive
+5,NAM005,Ardita,Neurological
+6,NAM006,Amavata,Rheumatic
+7,NAM007,Kaphaja Kasa,Respiratory
+8,NAM008,Pandu,Hematologic
+9,NAM009,Raktapitta,Hemorrhagic
+10,NAM010,Grahani,Digestive
+11,NAM011,Shotha,Edema
+12,NAM012,Madatyaya,Toxicology
+13,NAM013,Mutrakriccha,Urologic
+14,NAM014,Jwara,Fever
+15,NAM015,Anaha,Digestive
+16,NAM016,Arsha,Anorectal
+17,NAM017,Kustha,Dermatology
+18,NAM018,Shiroroga,Neurological
+19,NAM019,Hridroga,Cardiac
+20,NAM020,Kamala,Hepatic
