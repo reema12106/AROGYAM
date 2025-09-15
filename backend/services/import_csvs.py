@@ -10,6 +10,7 @@ DB_CONFIG = {
     "user": "root",
     "password": "ORIEdIXeemgmECRvQVhlDOFqiTcCneef",
     "database": "sih_db",
+    "ssl_disabled": True
 }
 
 def get_conn():

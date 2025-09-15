@@ -8,7 +8,8 @@ db_config = {
     "port": 17682, 
     "user": "root", 
     "password": "ORIEdIXeemgmECRvQVhlDOFqiTcCneef", 
-    "database": "sih_db" }
+    "database": "sih_db",
+    "ssl_disabled": True }
 
 # Global pool object
 connection_pool = None
