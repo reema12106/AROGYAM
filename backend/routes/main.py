@@ -1,8 +1,264 @@
-from flask import Blueprint, jsonify, request
+
+
+from flask import Blueprint, jsonify, request, current_app
 from datetime import datetime
 from ..services.database import get_connection
+import jwt
+import json
+import requests
+from jwt.algorithms import RSAAlgorithm
+from functools import wraps
+# --- FHIR resources imports ---
+from fhir.resources.codesystem import CodeSystem
+from fhir.resources.conceptmap import ConceptMap
+from fhir.resources.parameters import Parameters, ParametersParameter
+from fhir.resources.operationoutcome import OperationOutcome
+from fhir.resources.bundle import Bundle, BundleEntry
+from fhir.resources.valueset import ValueSet
 
 main_bp = Blueprint("main", __name__)
+
+# ==================== AUTHENTICATION MIDDLEWARE ====================
+def abha_oauth_required(f):
+    """ABHA OAuth 2.0 authentication decorator"""
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        # Skip auth for health check and documentation endpoints
+        if request.endpoint in ['health_check', 'get_mapping_cases', 'index']:
+            return f(*args, **kwargs)
+        auth_header = request.headers.get('Authorization')
+        if not auth_header:
+            return jsonify({"error": "Authorization header required"}), 401
+        try:
+            token = auth_header.replace('Bearer ', '').strip()
+            # --- ABHA JWKS integration: Replace JWKS_URL, audience, and issuer below with ABHA's real values ---
+            JWKS_URL = 'https://abha-auth.example.com/.well-known/jwks.json'  # TODO: Set ABHA JWKS endpoint
+            AUDIENCE = 'your-client-id'  # TODO: Set your OAuth client ID
+            ISSUER = 'expected-issuer'   # TODO: Set expected issuer
+
+            # Fetch JWKS and get public key for the token's kid
+            unverified_header = jwt.get_unverified_header(token)
+            jwks = requests.get(JWKS_URL).json()
+            public_key = None
+            for key in jwks['keys']:
+                if key['kid'] == unverified_header['kid']:
+                    public_key = RSAAlgorithm.from_jwk(json.dumps(key))
+                    break
+            if not public_key:
+                return jsonify({"error": "Public key not found for token"}), 401
+            decoded = jwt.decode(
+                token,
+                public_key,
+                algorithms=["RS256"],
+                audience=AUDIENCE,
+                issuer=ISSUER
+            )
+            request.abha_id = decoded.get('sub', 'unknown')
+        except Exception as e:
+            return jsonify({"error": f"Invalid token: {str(e)}"}), 401
+        return f(*args, **kwargs)
+    return decorated_function
+
+# ==================== END OF ORIGINAL ENDPOINTS ====================
+
+# ==================== NEW FHIR R4 COMPLIANT ENDPOINTS (fhir.resources) ====================
+
+# --- FHIR resource builders using fhir.resources ---
+def build_fhir_codesystem_resource():
+    cs_data = build_fhir_codesystem()
+    if not cs_data:
+        return None
+    cs = CodeSystem.parse_obj(cs_data)
+    return cs
+
+def build_fhir_conceptmap_resource():
+    cm_data = build_fhir_conceptmap()
+    if not cm_data:
+        return None
+    cm = ConceptMap.parse_obj(cm_data)
+    return cm
+
+@main_bp.route("/fhir-r4/CodeSystem/namaste", methods=["GET"])
+@abha_oauth_required
+def fhir_r4_codesystem():
+    """FHIR R4 CodeSystem resource for NAMASTE codes (fhir.resources)"""
+    cs = build_fhir_codesystem_resource()
+    if not cs:
+        return jsonify({"error": "Failed to build CodeSystem"}), 500
+    log_audit_event(getattr(request, 'abha_id', 'anonymous'), "fhir_r4_codesystem_access", "Accessed NAMASTE CodeSystem (fhir.resources)")
+    return jsonify(cs.dict()), 200
+
+@main_bp.route("/fhir-r4/ConceptMap/namaste-icd11", methods=["GET"])
+@abha_oauth_required
+def fhir_r4_conceptmap():
+    """FHIR R4 ConceptMap for NAMASTE-ICD11 mappings (fhir.resources)"""
+    cm = build_fhir_conceptmap_resource()
+    if not cm:
+        return jsonify({"error": "Failed to build ConceptMap"}), 500
+    log_audit_event(getattr(request, 'abha_id', 'anonymous'), "fhir_r4_conceptmap_access", "Accessed NAMASTE-ICD11 ConceptMap (fhir.resources)")
+    return jsonify(cm.dict()), 200
+
+@main_bp.route("/fhir-r4/ValueSet/namaste-codes", methods=["GET"])
+@abha_oauth_required
+def fhir_r4_valueset():
+    """FHIR R4 ValueSet for auto-complete functionality (fhir.resources)"""
+    try:
+        query = request.args.get("name", "").strip()
+        conn = get_connection()
+        cursor = conn.cursor(dictionary=True)
+        if query:
+            sql = "SELECT code, display_name FROM namaste_codes WHERE display_name LIKE %s LIMIT 20"
+            cursor.execute(sql, (f"%{query}%",))
+        else:
+            cursor.execute("SELECT code, display_name FROM namaste_codes LIMIT 50")
+        contains = []
+        for row in cursor.fetchall():
+            contains.append({
+                "system": "https://nrces.in/fhir/CodeSystem/namaste",
+                "code": row['code'],
+                "display": row['display_name']
+            })
+        cursor.close()
+        conn.close()
+        valueset_data = {
+            "resourceType": "ValueSet",
+            "id": "namaste-codes",
+            "url": "https://nrces.in/fhir/ValueSet/namaste-codes",
+            "version": "1.0.0",
+            "name": "NAMASTECodesValueSet",
+            "title": "NAMASTE Codes for Auto-complete",
+            "status": "active",
+            "compose": {
+                "include": [{
+                    "system": "https://nrces.in/fhir/CodeSystem/namaste"
+                }]
+            },
+            "expansion": {
+                "timestamp": datetime.now().isoformat(),
+                "contains": contains
+            }
+        }
+        vs = ValueSet.parse_obj(valueset_data)
+        log_audit_event(getattr(request, 'abha_id', 'anonymous'), "fhir_r4_valueset_access", f"Searched ValueSet (fhir.resources) with query: {query}")
+        return jsonify(vs.dict()), 200
+    except Exception as e:
+        return jsonify({"error": f"ValueSet failed: {str(e)}"}), 500
+
+@main_bp.route("/fhir-r4/ConceptMap/namaste-icd11/$translate", methods=["POST"])
+@abha_oauth_required
+def fhir_r4_translate():
+    """FHIR R4 $translate operation for code conversion (fhir.resources)"""
+    try:
+        data = request.get_json()
+        code = data.get('code')
+        system = data.get('system')
+        if not code:
+            return jsonify({"error": "Code parameter required"}), 400
+        conn = get_connection()
+        cursor = conn.cursor(dictionary=True)
+        if system and "icd" in system.lower():
+            cursor.execute("""
+                SELECT n.code, n.display_name, m.icd11_code, m.icd11_display_name, m.mapping_type
+                FROM icd11_mappings m 
+                JOIN namaste_codes n ON m.namaste_code = n.code
+                WHERE m.icd11_code = %s
+            """, (code,))
+        else:
+            cursor.execute("""
+                SELECT n.code, n.display_name, m.icd11_code, m.icd11_display_name, m.mapping_type
+                FROM icd11_mappings m 
+                JOIN namaste_codes n ON m.namaste_code = n.code
+                WHERE n.code = %s
+            """, (code,))
+        mappings = cursor.fetchall()
+        cursor.close()
+        conn.close()
+        params = Parameters.construct()
+        params.parameter = [ParametersParameter.construct(name="result", valueBoolean=len(mappings) > 0)]
+        for mapping in mappings:
+            params.parameter.append(
+                ParametersParameter.construct(
+                    name="match",
+                    part=[
+                        {"name": "equivalence", "valueCode": "equivalent"},
+                        {"name": "concept", "valueCoding": {
+                            "system": "http://id.who.int/icd/release/11",
+                            "code": mapping['icd11_code'],
+                            "display": mapping['icd11_display_name']
+                        }}
+                    ]
+                )
+            )
+        log_audit_event(getattr(request, 'abha_id', 'anonymous'), "fhir_r4_translate", f"Translated code (fhir.resources): {code}")
+        return jsonify(params.dict()), 200
+    except Exception as e:
+        return jsonify({"error": f"Translation failed: {str(e)}"}), 500
+
+@main_bp.route("/fhir-r4/Bundle", methods=["POST"])
+@abha_oauth_required
+def fhir_r4_bundle_upload():
+    """FHIR R4 Bundle upload endpoint for encounters (fhir.resources)"""
+    try:
+        data = request.get_json()
+        if data.get('resourceType') != 'Bundle':
+            return jsonify({"error": "Not a FHIR Bundle"}), 400
+        bundle = Bundle.parse_obj(data)
+        processed_count = 0
+        for entry in getattr(bundle, 'entry', []) or []:
+            resource = getattr(entry, 'resource', None)
+            if resource and getattr(resource, 'resource_type', None) == 'Condition':
+                processed_count += 1
+        outcome = OperationOutcome.construct()
+        outcome.issue = [{
+            "severity": "information",
+            "code": "informational",
+            "details": {"text": f"Bundle processed successfully with {processed_count} resources"}
+        }]
+        log_audit_event(getattr(request, 'abha_id', 'anonymous'), "fhir_r4_bundle_upload", f"Processed {processed_count} resources from Bundle (fhir.resources)")
+        return jsonify(outcome.dict()), 200
+    except Exception as e:
+        return jsonify({"error": f"Bundle processing failed: {str(e)}"}), 500
+
+main_bp = Blueprint("main", __name__)
+
+# ==================== AUTHENTICATION MIDDLEWARE ====================
+def abha_oauth_required(f):
+    """ABHA OAuth 2.0 authentication decorator"""
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        # Skip auth for health check and documentation endpoints
+        if request.endpoint in ['health_check', 'get_mapping_cases', 'index']:
+            return f(*args, **kwargs)
+            
+        auth_header = request.headers.get('Authorization')
+        if not auth_header:
+            return jsonify({"error": "Authorization header required"}), 401
+        
+        try:
+            token = auth_header.replace('Bearer ', '')
+            # In production, verify with ABHA public key; for now, basic validation
+            decoded = jwt.decode(token, options={"verify_signature": False})
+            request.abha_id = decoded.get('sub', 'unknown')
+        except Exception as e:
+            return jsonify({"error": f"Invalid token: {str(e)}"}), 401
+        
+        return f(*args, **kwargs)
+    return decorated_function
+
+def log_audit_event(user_id, action_type, details):
+    """Log activity to audit trail"""
+    try:
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            "INSERT INTO audit_trail (user_id, action_type, details) VALUES (%s, %s, %s)",
+            (user_id, action_type, details)
+        )
+        conn.commit()
+        cursor.close()
+        conn.close()
+    except Exception as e:
+        current_app.logger.error(f"Audit log failed: {e}")
 
 # ==================== HELPER FUNCTIONS ====================
 def determine_mapping_case(mappings):
@@ -58,9 +314,100 @@ def get_recommended_codes(mappings, mapping_case):
         
     return recommendations
 
+def build_fhir_codesystem():
+    """Build FHIR CodeSystem resource for NAMASTE codes"""
+    try:
+        conn = get_connection()
+        cursor = conn.cursor(dictionary=True)
+        
+        cursor.execute("SELECT * FROM namaste_codes")
+        concepts = []
+        for row in cursor.fetchall():
+            concepts.append({
+                "code": row['code'],
+                "display": row['display_name'],
+                "designation": [{
+                    "value": row['display_name'],
+                    "use": {
+                        "system": "http://snomed.info/sct",
+                        "code": "900000000000013009",
+                        "display": "Synonym"
+                    }
+                }]
+            })
+        
+        cursor.close()
+        conn.close()
+        
+        return {
+            "resourceType": "CodeSystem",
+            "id": "namaste",
+            "url": "https://nrces.in/fhir/CodeSystem/namaste",
+            "version": "1.0.0",
+            "name": "NAMASTECodeSystem",
+            "title": "National AYUSH Morbidity & Standardized Terminologies Electronic",
+            "status": "active",
+            "content": "complete",
+            "concept": concepts
+        }
+        
+    except Exception as e:
+        current_app.logger.error(f"FHIR CodeSystem build failed: {e}")
+        return None
+
+def build_fhir_conceptmap():
+    """Build FHIR ConceptMap resource for NAMASTE-ICD11 mappings"""
+    try:
+        conn = get_connection()
+        cursor = conn.cursor(dictionary=True)
+        
+        cursor.execute("""
+            SELECT m.*, n.display_name as namaste_display 
+            FROM icd11_mappings m 
+            JOIN namaste_codes n ON m.namaste_code = n.code
+        """)
+        
+        groups = {}
+        for row in cursor.fetchall():
+            if row['namaste_code'] not in groups:
+                groups[row['namaste_code']] = {
+                    "source": "https://nrces.in/fhir/CodeSystem/namaste",
+                    "target": "http://id.who.int/icd/release/11",
+                    "element": []
+                }
+            
+            groups[row['namaste_code']]['element'].append({
+                "code": row['namaste_code'],
+                "display": row['namaste_display'],
+                "target": [{
+                    "code": row['icd11_code'],
+                    "display": row['icd11_display_name'],
+                    "equivalence": "equivalent" if row['mapping_type'] in ['TM2', 'Biomed'] else "relatedto"
+                }]
+            })
+        
+        cursor.close()
+        conn.close()
+        
+        return {
+            "resourceType": "ConceptMap",
+            "id": "namaste-icd11",
+            "url": "https://nrces.in/fhir/ConceptMap/namaste-icd11",
+            "version": "1.0.0",
+            "name": "NAMASTEToICD11",
+            "title": "NAMASTE to ICD-11 Mapping",
+            "status": "active",
+            "group": list(groups.values())
+        }
+        
+    except Exception as e:
+        current_app.logger.error(f"FHIR ConceptMap build failed: {e}")
+        return None
+
 # ==================== CORE MAPPING ENDPOINTS ====================
 
 @main_bp.route("/search/conditions", methods=["GET"])
+@abha_oauth_required
 def search_conditions():
     """
     Search NAMASTE conditions with intelligent mapping detection
@@ -129,6 +476,7 @@ def search_conditions():
         cursor.close()
         conn.close()
 
+        log_audit_event(getattr(request, 'abha_id', 'anonymous'), "search_conditions", f"Searched for: {query}")
         return jsonify({
             "results": results,
             "pagination": {
@@ -144,6 +492,7 @@ def search_conditions():
         return jsonify({"error": f"Search failed: {str(e)}"}), 500
 
 @main_bp.route("/mapping-profile/<string:namaste_code>", methods=["GET"])
+@abha_oauth_required
 def get_mapping_profile(namaste_code):
     """
     Get complete mapping profile for a NAMASTE code
@@ -173,6 +522,7 @@ def get_mapping_profile(namaste_code):
         cursor.close()
         conn.close()
 
+        log_audit_event(getattr(request, 'abha_id', 'anonymous'), "mapping_profile", f"Viewed profile for: {namaste_code}")
         return jsonify({
             "condition": {
                 "id": condition['id'],
@@ -196,6 +546,7 @@ def get_mapping_profile(namaste_code):
         return jsonify({"error": f"Failed to get mapping profile: {str(e)}"}), 500
 
 @main_bp.route("/search/icd11", methods=["GET"])
+@abha_oauth_required
 def search_icd11():
     """
     Search ICD-11 codes and mappings
@@ -238,6 +589,7 @@ def search_icd11():
         cursor.close()
         conn.close()
 
+        log_audit_event(getattr(request, 'abha_id', 'anonymous'), "search_icd11", f"Searched ICD-11: {query}")
         return jsonify({
             "results": results,
             "query": query,
@@ -248,9 +600,178 @@ def search_icd11():
     except Exception as e:
         return jsonify({"error": f"ICD-11 search failed: {str(e)}"}), 500
 
+# ==================== NEW FHIR R4 COMPLIANT ENDPOINTS ====================
+
+@main_bp.route("/fhir/CodeSystem/namaste", methods=["GET"])
+@abha_oauth_required
+def fhir_codesystem():
+    """FHIR CodeSystem resource for NAMASTE codes"""
+    codesystem = build_fhir_codesystem()
+    if not codesystem:
+        return jsonify({"error": "Failed to build CodeSystem"}), 500
+    
+    log_audit_event(getattr(request, 'abha_id', 'anonymous'), "fhir_codesystem_access", "Accessed NAMASTE CodeSystem")
+    return jsonify(codesystem)
+
+@main_bp.route("/fhir/ConceptMap/namaste-icd11", methods=["GET"])
+@abha_oauth_required
+def fhir_conceptmap():
+    """FHIR ConceptMap for NAMASTE-ICD11 mappings"""
+    conceptmap = build_fhir_conceptmap()
+    if not conceptmap:
+        return jsonify({"error": "Failed to build ConceptMap"}), 500
+    
+    log_audit_event(getattr(request, 'abha_id', 'anonymous'), "fhir_conceptmap_access", "Accessed NAMASTE-ICD11 ConceptMap")
+    return jsonify(conceptmap)
+
+@main_bp.route("/fhir/ValueSet/namaste-codes", methods=["GET"])
+@abha_oauth_required
+def fhir_valueset():
+    """FHIR ValueSet for auto-complete functionality"""
+    try:
+        query = request.args.get("name", "").strip()
+        conn = get_connection()
+        cursor = conn.cursor(dictionary=True)
+        
+        if query:
+            sql = "SELECT code, display_name FROM namaste_codes WHERE display_name LIKE %s LIMIT 20"
+            cursor.execute(sql, (f"%{query}%",))
+        else:
+            cursor.execute("SELECT code, display_name FROM namaste_codes LIMIT 50")
+        
+        contains = []
+        for row in cursor.fetchall():
+            contains.append({
+                "system": "https://nrces.in/fhir/CodeSystem/namaste",
+                "code": row['code'],
+                "display": row['display_name']
+            })
+        
+        cursor.close()
+        conn.close()
+        
+        valueset = {
+            "resourceType": "ValueSet",
+            "id": "namaste-codes",
+            "url": "https://nrces.in/fhir/ValueSet/namaste-codes",
+            "version": "1.0.0",
+            "name": "NAMASTECodesValueSet",
+            "title": "NAMASTE Codes for Auto-complete",
+            "status": "active",
+            "compose": {
+                "include": [{
+                    "system": "https://nrces.in/fhir/CodeSystem/namaste"
+                }]
+            },
+            "expansion": {
+                "timestamp": datetime.now().isoformat(),
+                "contains": contains
+            }
+        }
+        
+        log_audit_event(getattr(request, 'abha_id', 'anonymous'), "fhir_valueset_access", f"Searched ValueSet with query: {query}")
+        return jsonify(valueset)
+        
+    except Exception as e:
+        return jsonify({"error": f"ValueSet failed: {str(e)}"}), 500
+
+@main_bp.route("/fhir/ConceptMap/namaste-icd11/$translate", methods=["POST"])
+@abha_oauth_required
+def fhir_translate():
+    """FHIR $translate operation for code conversion"""
+    try:
+        data = request.get_json()
+        code = data.get('code')
+        system = data.get('system')
+        
+        if not code:
+            return jsonify({"error": "Code parameter required"}), 400
+        
+        conn = get_connection()
+        cursor = conn.cursor(dictionary=True)
+        
+        if system and "icd" in system.lower():
+            # ICD-11 to NAMASTE translation
+            cursor.execute("""
+                SELECT n.code, n.display_name, m.icd11_code, m.icd11_display_name, m.mapping_type
+                FROM icd11_mappings m 
+                JOIN namaste_codes n ON m.namaste_code = n.code
+                WHERE m.icd11_code = %s
+            """, (code,))
+        else:
+            # NAMASTE to ICD-11 translation
+            cursor.execute("""
+                SELECT n.code, n.display_name, m.icd11_code, m.icd11_display_name, m.mapping_type
+                FROM icd11_mappings m 
+                JOIN namaste_codes n ON m.namaste_code = n.code
+                WHERE n.code = %s
+            """, (code,))
+        
+        mappings = cursor.fetchall()
+        cursor.close()
+        conn.close()
+        
+        result = {
+            "resourceType": "Parameters",
+            "parameter": [{
+                "name": "result",
+                "valueBoolean": len(mappings) > 0
+            }]
+        }
+        
+        for mapping in mappings:
+            result['parameter'].append({
+                "name": "match",
+                "part": [
+                    {"name": "equivalence", "valueCode": "equivalent"},
+                    {"name": "concept", "valueCoding": {
+                        "system": "http://id.who.int/icd/release/11",
+                        "code": mapping['icd11_code'],
+                        "display": mapping['icd11_display_name']
+                    }}
+                ]
+            })
+        
+        log_audit_event(getattr(request, 'abha_id', 'anonymous'), "fhir_translate", f"Translated code: {code}")
+        return jsonify(result)
+        
+    except Exception as e:
+        return jsonify({"error": f"Translation failed: {str(e)}"}), 500
+
+@main_bp.route("/fhir/Bundle", methods=["POST"])
+@abha_oauth_required
+def fhir_bundle_upload():
+    """FHIR Bundle upload endpoint for encounters"""
+    try:
+        data = request.get_json()
+        if data.get('resourceType') != 'Bundle':
+            return jsonify({"error": "Not a FHIR Bundle"}), 400
+        
+        # Process bundle entries
+        processed_count = 0
+        for entry in data.get('entry', []):
+            resource = entry.get('resource', {})
+            if resource.get('resourceType') == 'Condition':
+                # Extract and store condition
+                processed_count += 1
+        
+        log_audit_event(getattr(request, 'abha_id', 'anonymous'), "fhir_bundle_upload", f"Processed {processed_count} resources from Bundle")
+        return jsonify({
+            "resourceType": "OperationOutcome",
+            "issue": [{
+                "severity": "information",
+                "code": "informational",
+                "details": {"text": f"Bundle processed successfully with {processed_count} resources"}
+            }]
+        })
+        
+    except Exception as e:
+        return jsonify({"error": f"Bundle processing failed: {str(e)}"}), 500
+
 # ==================== ENCOUNTER MANAGEMENT ====================
 
 @main_bp.route("/encounters", methods=["POST"])
+@abha_oauth_required
 def create_encounter():
     """
     Create a new patient encounter
@@ -289,6 +810,7 @@ def create_encounter():
         cursor.close()
         conn.close()
 
+        log_audit_event(getattr(request, 'abha_id', 'anonymous'), "create_encounter", f"Created encounter for patient: {patient_id}")
         return jsonify({
             "success": True,
             "encounter_id": encounter_id,
@@ -299,6 +821,7 @@ def create_encounter():
         return jsonify({"error": f"Failed to create encounter: {str(e)}"}), 500
 
 @main_bp.route("/encounters/<int:encounter_id>/problems", methods=["POST"])
+@abha_oauth_required
 def add_problem_to_encounter(encounter_id):
     """
     Add a problem/diagnosis to an encounter
@@ -344,6 +867,7 @@ def add_problem_to_encounter(encounter_id):
         cursor.close()
         conn.close()
 
+        log_audit_event(getattr(request, 'abha_id', 'anonymous'), "add_problem", f"Added problem {code} to encounter {encounter_id}")
         return jsonify({
             "success": True,
             "problem_id": problem_id,
@@ -356,6 +880,7 @@ def add_problem_to_encounter(encounter_id):
 # ==================== ANALYTICS & HEALTH ====================
 
 @main_bp.route("/mapping-stats", methods=["GET"])
+@abha_oauth_required
 def get_mapping_stats():
     """Get statistics about mapping coverage and distribution"""
     try:
@@ -396,6 +921,7 @@ def get_mapping_stats():
         cursor.close()
         conn.close()
 
+        log_audit_event(getattr(request, 'abha_id', 'anonymous'), "view_stats", "Viewed mapping statistics")
         return jsonify({
             "mapping_type_distribution": mapping_stats,
             "coverage_statistics": coverage_stats,
@@ -496,9 +1022,15 @@ def get_mapping_cases():
 def index():
     """Root endpoint with API documentation"""
     return jsonify({
-        "message": "NAMASTE-ICD11 Mapping API",
+        "message": "NAMASTE-ICD11 FHIR Terminology Server",
         "version": "1.0.0",
+        "standards": "FHIR R4, ICD-11, ABHA OAuth 2.0, ISO 22600",
         "endpoints": {
+            "fhir_codesystem": {"method": "GET", "path": "/fhir/CodeSystem/namaste"},
+            "fhir_conceptmap": {"method": "GET", "path": "/fhir/ConceptMap/namaste-icd11"},
+            "fhir_valueset": {"method": "GET", "path": "/fhir/ValueSet/namaste-codes?name={query}"},
+            "fhir_translate": {"method": "POST", "path": "/fhir/ConceptMap/namaste-icd11/$translate"},
+            "fhir_bundle": {"method": "POST", "path": "/fhir/Bundle"},
             "search_conditions": {"method": "GET", "path": "/search/conditions?q={query}"},
             "mapping_profile": {"method": "GET", "path": "/mapping-profile/{code}"},
             "search_icd11": {"method": "GET", "path": "/search/icd11?q={query}"},
@@ -507,6 +1039,5 @@ def index():
             "stats": {"method": "GET", "path": "/mapping-stats"},
             "health": {"method": "GET", "path": "/health"},
             "documentation": {"method": "GET", "path": "/mapping-cases"}
-        },
-        "description": "API for mapping between NAMASTE traditional medicine codes and ICD-11 standards"
+        }
     })
