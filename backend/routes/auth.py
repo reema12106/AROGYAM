@@ -6,7 +6,7 @@ import jwt
 
 auth_bp = Blueprint("auth", __name__)
 
-@auth_bp.route("/auth/register", methods=["POST"])
+@auth_bp.route("/register", methods=["POST"])
 def register_user():
     """Register a new user with ABHA number"""
     try:
@@ -48,7 +48,7 @@ def register_user():
     except Exception as e:
         return jsonify({"error": f"Registration failed: {str(e)}"}), 500
 
-@auth_bp.route("/auth/send-otp", methods=["POST"])
+@auth_bp.route("/send-otp", methods=["POST"])
 def send_otp():
     """Send OTP to user's phone number"""
     try:
@@ -104,7 +104,7 @@ def send_otp():
     except Exception as e:
         return jsonify({"error": f"OTP sending failed: {str(e)}"}), 500
 
-@auth_bp.route("/auth/verify-otp", methods=["POST"])
+@auth_bp.route("/verify-otp", methods=["POST"])
 def verify_otp():
     """Verify OTP and generate JWT token"""
     try:
@@ -143,7 +143,7 @@ def verify_otp():
     except Exception as e:
         return jsonify({"error": f"OTP verification failed: {str(e)}"}), 500
 
-@auth_bp.route("/auth/validate-token", methods=["POST"])
+@auth_bp.route("/validate-token", methods=["POST"])
 def validate_token():
     """Validate JWT token"""
     try:
@@ -166,7 +166,7 @@ def validate_token():
     except Exception as e:
         return jsonify({"error": f"Token validation failed: {str(e)}"}), 500
 
-@auth_bp.route("/auth/user-profile", methods=["GET"])
+@auth_bp.route("/user-profile", methods=["GET"])
 def get_user_profile():
     """Get user profile using JWT token"""
     try:

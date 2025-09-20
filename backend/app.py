@@ -1,31 +1,49 @@
-from flask import Flask
-from .routes.main import main_bp
-from .routes.auth import auth_bp
-from .services import database
-from .config import Config
+from flask import Flask, request, jsonify, send_from_directory
+from flask_cors import CORS
+import os
+from backend.routes.auth import auth_bp
+from backend.routes.main import main_bp
+from backend.services.database import init_db
+from backend.config import Config
+import sys
+import os
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 def create_app():
-    app = Flask(__name__)
+    app = Flask(__name__, static_folder='../frontend', static_url_path='')
     app.config.from_object(Config)
 
-    # Initialize DB
-    database.init_db(app)
+    # Enable CORS
+    CORS(app)
+
+    # Initialize database
+    init_db(app)
 
     # Register blueprints
-    app.register_blueprint(main_bp)
-    app.register_blueprint(auth_bp, url_prefix='/api')
+    app.register_blueprint(auth_bp, url_prefix='/api/auth')
+    app.register_blueprint(main_bp, url_prefix='/api')
 
-    @app.route("/ping")
-    def ping():
-        return {"status": "ok", "message": "Arogyam backend running!"}
+    # Root-level health endpoint for easier frontend checks
+    @app.route('/health')
+    def root_health():
+        from datetime import datetime
+        return {
+            "status": "healthy",
+            "timestamp": datetime.now().isoformat(),
+            "message": "Root health endpoint"
+        }
 
-    @app.route("/db-check")
-    def db_check():
-        return {"db_time": database.test_query()}
+    # Serve frontend files
+    @app.route('/')
+    def serve_frontend():
+        return send_from_directory(app.static_folder, 'index.html')
+
+    @app.route('/<path:path>')
+    def serve_static(path):
+        return send_from_directory(app.static_folder, path)
 
     return app
 
-# 🔹 This block makes sure Flask runs when using python -m backend.app
-if __name__ == "__main__" or __name__ == "backend.app":
+if __name__ == '__main__':
     app = create_app()
-    app.run(debug=True)
+    app.run(debug=True, host='0.0.0.0', port=5000)

@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NAMASTE-ICD11 Terminology Service</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <header>
+        <div class="container">
+            <div class="header-content">
+                <div class="logo">
+                    <span class="logo-icon">🌿</span>
+                    <span>NAMASTE-ICD11 Terminology Service</span>
+                </div>
+                <nav>
+                    <ul>
+                        <li><a href="#" class="nav-link active" data-page="home">Home</a></li>
+                        <li><a href="#" class="nav-link" data-page="search">Search</a></li>
+                        <li><a href="#" class="nav-link" data-page="translate">Translate</a></li>
+                        <li><a href="#" class="nav-link" data-page="encounters">Encounters</a></li>
+                        <li><a href="#" class="nav-link" data-page="login" id="login-link">Login</a></li>
+                    </ul>
+                </nav>
+            </div>
+        </div>
+    </header>
+
+    <main>
+        <div class="container">
+            <!-- Home Page -->
+            <div id="home-page" class="page active">
+                <div class="card">
+                    <h2 class="card-title">Welcome to NAMASTE-ICD11 Terminology Service</h2>
+                    <p>This service integrates India's NAMASTE codes with WHO's ICD-11 Traditional Medicine Module 2 (TM2) and Biomedicine codes for interoperable EHR systems.</p>
+                    
+                    <div class="mt-4">
+                        <h3>System Status:</h3>
+                        <div id="system-status">
+                            <p>Checking backend connection...</p>
+                        </div>
+                    </div>
+                    
+                    <div class="mt-4">
+                        <button onclick="showPage('search')">Start Searching</button>
+                        <button class="secondary" onclick="showPage('translate')">Translate Codes</button>
+                        <button class="secondary" onclick="showPage('encounters')">Manage Encounters</button>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Search Page -->
+            <div id="search-page" class="page">
+                <div class="card">
+                    <h2 class="card-title">Search NAMASTE & ICD-11 Codes</h2>
+                    
+                    <div class="form-group">
+                        <label for="search-query">Search Term</label>
+                        <input type="text" id="search-query" placeholder="Enter condition name or code (min 2 characters)">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="search-type">Search Type</label>
+                        <select id="search-type">
+                            <option value="namaste">NAMASTE Codes</option>
+                            <option value="icd11">ICD-11 Codes</option>
+                        </select>
+                    </div>
+                    
+                    <button id="search-btn" onclick="performSearch()">Search</button>
+                    
+                    <div id="search-results" class="search-results hidden">
+                        <h3>Search Results</h3>
+                        <div id="results-container"></div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Translate Page -->
+            <div id="translate-page" class="page">
+                <div class="card">
+                    <h2 class="card-title">Code Translation</h2>
+                    
+                    <div class="tabs">
+                        <div class="tab active" data-tab="namaste-to-icd">NAMASTE to ICD-11</div>
+                        <div class="tab" data-tab="icd-to-namaste">ICD-11 to NAMASTE</div>
+                    </div>
+                    
+                    <div class="tab-content active" id="namaste-to-icd-tab">
+                        <div class="form-group">
+                            <label for="namaste-code">NAMASTE Code</label>
+                            <input type="text" id="namaste-code" placeholder="Enter NAMASTE code (e.g., NAM001)">
+                        </div>
+                        
+                        <button onclick="translateCode('namaste-to-icd')">Translate</button>
+                        
+                        <div id="translation-result" class="translation-result hidden">
+                            <h4>Translation Result</h4>
+                            <div id="translation-result-content"></div>
+                        </div>
+                    </div>
+                    
+                    <div class="tab-content" id="icd-to-namaste-tab">
+                        <div class="form-group">
+                            <label for="icd-code">ICD-11 Code</label>
+                            <input type="text" id="icd-code" placeholder="Enter ICD-11 code (e.g., TM2-11001)">
+                        </div>
+                        
+                        <button onclick="translateCode('icd-to-namaste')">Translate</button>
+                        
+                        <div id="translation-result-2" class="translation-result hidden">
+                            <h4>Translation Result</h4>
+                            <div id="translation-result-content-2"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Encounters Page -->
+            <div id="encounters-page" class="page">
+                <div class="card">
+                    <h2 class="card-title">Patient Encounters</h2>
+                    
+                    <div class="tabs">
+                        <div class="tab active" data-tab="create-encounter">Create Encounter</div>
+                        <div class="tab" data-tab="view-encounters">View Encounters</div>
+                    </div>
+                    
+                    <div class="tab-content active" id="create-encounter-tab">
+                        <div class="form-group">
+                            <label for="patient-id">Patient ID</label>
+                            <input type="text" id="patient-id" placeholder="Enter patient identifier">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="encounter-type">Encounter Type</label>
+                            <select id="encounter-type">
+                                <option value="consultation">Consultation</option>
+                                <option value="follow-up">Follow-up</option>
+                                <option value="emergency">Emergency</option>
+                            </select>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="encounter-notes">Notes</label>
+                            <textarea id="encounter-notes" rows="3" placeholder="Enter encounter notes"></textarea>
+                        </div>
+                        
+                        <button onclick="createEncounter()">Create Encounter</button>
+                        
+                        <div id="encounter-result" class="translation-result hidden">
+                            <h4>Encounter Created</h4>
+                            <div id="encounter-result-content"></div>
+                        </div>
+                    </div>
+                    
+                    <div class="tab-content" id="view-encounters-tab">
+                        <div class="form-group">
+                            <label for="search-patient-id">Patient ID</label>
+                            <input type="text" id="search-patient-id" placeholder="Enter patient identifier to search">
+                        </div>
+                        
+                        <button onclick="loadEncounters()">Load Encounters</button>
+                        
+                        <div id="encounters-list" class="encounter-list hidden">
+                            <h4>Patient Encounters</h4>
+                            <div id="encounters-container"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Login Page -->
+            <div id="login-page" class="page">
+                <div class="login-container">
+                    <div class="card">
+                        <h2 class="card-title text-center">Login with ABHA</h2>
+                        
+                        <div class="form-group">
+                            <label for="abha-number">ABHA Number</label>
+                            <input type="text" id="abha-number" placeholder="12-3456-7890-1234">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="phone-number">Phone Number</label>
+                            <input type="tel" id="phone-number" placeholder="+919876543210">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="user-name">Full Name (for registration)</label>
+                            <input type="text" id="user-name" placeholder="Enter your full name">
+                        </div>
+                        
+                        <button onclick="registerUser()">Register / Login</button>
+                        
+                        <div id="otp-section" class="hidden mt-4">
+                            <div class="form-group">
+                                <label for="otp-code">OTP Code</label>
+                                <input type="text" id="otp-code" placeholder="Enter 6-digit OTP">
+                            </div>
+                            
+                            <button onclick="verifyOTP()">Verify & Login</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <footer>
+        <div class="container">
+            <p>NAMASTE-ICD11 Terminology Service | Compliant with India's 2016 EHR Standards</p>
+            <p>Ministry of Ayush, Government of India</p>
+        </div>
+    </footer>
+
+    <script src="script.js"></script>
+</body>
+</html>
