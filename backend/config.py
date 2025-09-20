@@ -1,7 +1,7 @@
 class Config:
-    SECRET_KEY = "devkey"  # later replace with env variable
+    SECRET_KEY = "your-super-secure-secret-key-here"
     DEBUG = True
-
+    
     # Database Configuration (using your existing MySQL setup)
     DB_CONFIG = {
         "host": "tramway.proxy.rlwy.net",

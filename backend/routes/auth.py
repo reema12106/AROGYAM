@@ -4,7 +4,7 @@ from ..services.database import get_connection
 from ..services.auth_service import auth_service
 import jwt
 
-auth_bp = Blueprint("auth", _name_)
+auth_bp = Blueprint("auth", __name__)
 
 @auth_bp.route("/auth/register", methods=["POST"])
 def register_user():

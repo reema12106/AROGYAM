@@ -5,7 +5,7 @@ from .services import database
 from .config import Config
 
 def create_app():
-    app = Flask(_name_)
+    app = Flask(__name__)
     app.config.from_object(Config)
 
     # Initialize DB
@@ -26,6 +26,6 @@ def create_app():
     return app
 
 # 🔹 This block makes sure Flask runs when using python -m backend.app
-if _name_ == "_main" or __name_ == "backend.app":
+if __name__ == "__main__" or __name__ == "backend.app":
     app = create_app()
-    app.run(debug=True) 
+    app.run(debug=True)

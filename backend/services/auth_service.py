@@ -8,7 +8,7 @@ import jwt
 import re
 
 class AuthService:
-    def _init_(self):
+    def __init__(self):
         # Initialize Twilio client with your credentials
         self.twilio_client = Client(Config.TWILIO_ACCOUNT_SID, Config.TWILIO_AUTH_TOKEN)
     
