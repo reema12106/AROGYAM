@@ -14,7 +14,7 @@ class Config:
     
     # Twilio Configuration
     TWILIO_ACCOUNT_SID = "AC21fae1318a49f90433da34163d3805c9"
-    TWILIO_AUTH_TOKEN = "f63d0039813775c32d1350020db8c29b"
+    TWILIO_AUTH_TOKEN = "9369f533770f8e1fabc1f2454feda253"
     TWILIO_PHONE_NUMBER = "+17176743068"
     
     # OTP Configuration
