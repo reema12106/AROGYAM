@@ -1,2 +1,25 @@
 class Config:
     SECRET_KEY = "devkey"  # later replace with env variable
+    DEBUG = True
+
+    # Database Configuration (using your existing MySQL setup)
+    DB_CONFIG = {
+        "host": "tramway.proxy.rlwy.net",
+        "port": 17682,
+        "user": "root",
+        "password": "ORIEdIXeemgmECRvQVhlDOFqiTcCneef",
+        "database": "sih_db",
+        "ssl_disabled": True
+    }
+    
+    # Twilio Configuration
+    TWILIO_ACCOUNT_SID = "AC21fae1318a49f90433da34163d3805c9"
+    TWILIO_AUTH_TOKEN = "f63d0039813775c32d1350020db8c29b"
+    TWILIO_PHONE_NUMBER = "+17176743068"
+    
+    # OTP Configuration
+    OTP_EXPIRY_MINUTES = 10
+    OTP_LENGTH = 6
+    
+    # JWT Configuration
+    JWT_SECRET_KEY = "jwt-super-secret-key-change-in-production"

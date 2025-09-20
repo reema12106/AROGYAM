@@ -1,5 +1,6 @@
 from flask import Flask
 from .routes.main import main_bp
+from .routes.auth import auth_bp
 from .services import database
 from .config import Config
 
@@ -12,6 +13,7 @@ def create_app():
 
     # Register blueprints
     app.register_blueprint(main_bp)
+    app.register_blueprint(auth_bp, url_prefix='/api')
 
     @app.route("/ping")
     def ping():
@@ -22,7 +24,6 @@ def create_app():
         return {"db_time": database.test_query()}
 
     return app
-
 
 # 🔹 This block makes sure Flask runs when using python -m backend.app
 if __name__ == "__main__" or __name__ == "backend.app":
