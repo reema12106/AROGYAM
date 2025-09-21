@@ -5,6 +5,60 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>NAMASTE-ICD11 Terminology Service</title>
     <link rel="stylesheet" href="styles.css">
+    <style>
+        body { background: linear-gradient(120deg, #e0e7ff 0%, #f0fdf4 100%); }
+        .card {
+            border-radius: 16px;
+            box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.12);
+            padding: 40px 32px 32px 32px;
+        }
+        .card-title {
+            font-size: 2.2rem;
+            font-weight: 700;
+            color: var(--primary);
+            margin-bottom: 1.5rem;
+            letter-spacing: -1px;
+        }
+        .mt-4 { margin-top: 1.5rem; }
+        button, .btn {
+            padding: 0.85rem 2rem;
+            font-size: 1.1rem;
+            border-radius: 8px;
+            border: none;
+            background: var(--primary);
+            color: #fff;
+            font-weight: 600;
+            box-shadow: 0 2px 8px #2563eb22;
+            transition: background 0.2s, box-shadow 0.2s;
+            margin-right: 0.5rem;
+            margin-bottom: 0.5rem;
+        }
+        button.secondary, .btn.secondary {
+            background: var(--gray);
+            color: #fff;
+        }
+        button:hover, .btn:hover {
+            background: var(--primary-dark);
+            box-shadow: 0 4px 16px #2563eb33;
+        }
+        button.secondary:hover, .btn.secondary:hover {
+            background: var(--dark);
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 20px;
+        }
+        .home-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1rem;
+            margin-top: 2rem;
+        }
+        .home-actions a {
+            text-decoration: none;
+        }
+    </style>
 </head>
 <body>
     <header>
@@ -17,8 +71,7 @@
                 <nav>
                     <ul>
                         <li><a href="#" class="nav-link active" data-page="home">Home</a></li>
-                        <li><a href="#" class="nav-link" data-page="dashboard">Dashboard</a></li>
-                        <li><a href="#" class="nav-link" data-page="search">Search</a></li>
+                        <li><a href="#" class="nav-link" data-page="dashboard">Search</a></li>
                         <li><a href="#" class="nav-link" data-page="translate">Translate</a></li>
                         <li><a href="#" class="nav-link" data-page="encounters">Encounters</a></li>
                         <li><a href="#" class="nav-link" data-page="login" id="login-link">Login</a></li>
@@ -32,7 +85,7 @@
             <!-- Dashboard Page -->
             <div id="dashboard-page" class="page">
                 <div class="card">
-                    <h2 class="card-title">Dashboard</h2>
+                    <h2 class="card-title">Search</h2>
                     <p>Access cross-mapping search and other tools.</p>
                     <button onclick="window.open('cross-search.html', '_blank')">Open Cross-Mapping Search</button>
                 </div>
@@ -52,9 +105,11 @@
                     </div>
                     
                     <div class="mt-4">
-                        <button onclick="showPage('search')">Start Searching</button>
-                        <button class="secondary" onclick="showPage('translate')">Translate Codes</button>
-                        <button class="secondary" onclick="showPage('encounters')">Manage Encounters</button>
+                        <div class="home-actions">
+                            <a href="cross-search.html" class="btn">Start Cross-Mapping Search</a>
+                            <button class="secondary" onclick="showPage('translate')">Translate Codes</button>
+                            <button class="secondary" onclick="showPage('encounters')">Manage Encounters</button>
+                        </div>
                     </div>
                 </div>
             </div>

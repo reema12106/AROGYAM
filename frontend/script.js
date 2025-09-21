@@ -522,7 +522,7 @@ async function registerUser() {
     }
     
     try {
-    const response = await fetch(`${API_BASE}/auth/register`, {
+    const response = await fetch(`${API_BASE}/api/auth/register`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
@@ -556,7 +556,7 @@ async function registerUser() {
 // Send OTP
 async function sendOTP(abhaNumber, phoneNumber) {
     try {
-    const response = await fetch(`${API_BASE}/auth/send-otp`, {
+    const response = await fetch(`${API_BASE}/api/auth/send-otp`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
@@ -593,7 +593,7 @@ async function verifyOTP() {
     }
     
     try {
-    const response = await fetch(`${API_BASE}/auth/verify-otp`, {
+    const response = await fetch(`${API_BASE}/api/auth/verify-otp`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
@@ -694,7 +694,7 @@ async function translateCode(direction) {
         
         showLoader(direction === 'namaste-to-icd' ? 'translation-result-content' : 'translation-result-content-2');
         
-    const response = await fetch(`${API_BASE}/fhir/ConceptMap/namaste-icd11/$translate`, {
+    const response = await fetch(`${API_BASE}/api/fhir/ConceptMap/namaste-icd11/$translate`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -794,7 +794,7 @@ async function createEncounter() {
             return;
         }
         
-    const response = await fetch(`${API_BASE}/encounters`, {
+    const response = await fetch(`${API_BASE}/api/encounters`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -850,7 +850,7 @@ async function loadEncounters() {
         
         // Note: This endpoint would need to be implemented in your backend
         // For now, we'll use a placeholder implementation
-    const response = await fetch(`${API_BASE}/encounters?patient_id=${patientId}`, {
+    const response = await fetch(`${API_BASE}/api/encounters?patient_id=${patientId}`, {
             method: 'GET',
             headers: {
                 'Authorization': `Bearer ${authToken}`
