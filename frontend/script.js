@@ -129,39 +129,32 @@ async function performSearch() {
     
     try {
         showLoader('search-results');
-        
         let endpoint = `${API_BASE}/api/search/conditions?q=${encodeURIComponent(query)}`;
         if (searchType === 'icd11') {
             endpoint = `${API_BASE}/api/search/icd11?q=${encodeURIComponent(query)}`;
         }
-        
         console.log('📡 Calling endpoint:', endpoint);
-        
         const response = await fetch(endpoint);
         console.log('✅ Response received. Status:', response.status);
-        
-        // Check what type of content we're getting
         const contentType = response.headers.get('content-type');
         console.log('📋 Content-Type:', contentType);
-        
         const responseText = await response.text();
         console.log('📄 Raw response (first 500 chars):', responseText.substring(0, 500));
-        
         // Try to parse as JSON
         let data;
         try {
             data = JSON.parse(responseText);
-            console.log('📦 Successfully parsed JSON data');
+            console.log('📦 Successfully parsed JSON data:', data);
         } catch (parseError) {
             console.error('❌ Failed to parse JSON:', parseError);
             console.log('📄 Full response text:', responseText);
             throw new Error('Server returned invalid JSON');
         }
-        
         if (response.ok) {
-            console.log('🎉 Search successful, calling display function');
+            console.log('🎉 Search successful, calling display function with data:', data);
             displaySearchResults(data);
         } else {
+            console.error('❌ Backend returned error:', data);
             throw new Error(data.error || `Search failed with status ${response.status}`);
         }
     } catch (error) {
@@ -175,6 +168,10 @@ async function performSearch() {
 // Display search results
 function displaySearchResults(data) {
     console.log('📊 Displaying FHIR Bundle results:', data);
+    if (!data) {
+        console.error('❌ No data received in displaySearchResults');
+        return;
+    }
     
     // First make sure the search results section is visible
     const searchResults = document.getElementById('search-results');
@@ -182,19 +179,13 @@ function displaySearchResults(data) {
         searchResults.classList.remove('hidden');
     }
     
-    // Now try to find the results container
-    const resultsContainer = document.getElementById('results-container');
+    // Use 'search-results' as the main container for displaying results
+    const resultsContainer = document.getElementById('search-results');
     if (!resultsContainer) {
-        console.error('❌ results-container element not found!');
-        console.log('🔍 Available elements with IDs:');
-        document.querySelectorAll('[id]').forEach(el => {
-            console.log('   -', el.id);
-        });
+        console.error('❌ search-results element not found!');
         return;
     }
-    
     resultsContainer.innerHTML = '';
-    
     // Display FHIR Bundle metadata
     const bundleInfo = document.createElement('div');
     bundleInfo.className = 'bundle-info';

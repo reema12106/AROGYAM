@@ -699,6 +699,31 @@ def create_encounter():
     except Exception as e:
         return jsonify({"error": f"Failed to create encounter: {str(e)}"}), 500
 
+# GET /encounters?patient_id=... endpoint for frontend
+@main_bp.route("/encounters", methods=["GET"])
+@abha_oauth_required
+def get_encounters():
+    """
+    Get all encounters for a given patient_id
+    Returns a JSON array of encounters
+    """
+    try:
+        patient_id = request.args.get('patient_id')
+        if not patient_id:
+            return jsonify({"error": "patient_id is required"}), 400
+
+        conn = get_connection()
+        cursor = conn.cursor(dictionary=True)
+        sql = "SELECT id, encounter_type, created_at, notes FROM encounters WHERE patient_id = %s ORDER BY created_at DESC"
+        cursor.execute(sql, (patient_id,))
+        encounters = cursor.fetchall()
+        cursor.close()
+        conn.close()
+
+        return jsonify(encounters)
+    except Exception as e:
+        return jsonify({"error": f"Failed to fetch encounters: {str(e)}"}), 500
+
 @main_bp.route("/encounters/<int:encounter_id>/problems", methods=["POST"])
 @abha_oauth_required
 def add_problem_to_encounter(encounter_id):
