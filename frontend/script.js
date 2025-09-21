@@ -16,9 +16,23 @@ const tabContents = document.querySelectorAll('.tab-content');
 // Initialize the application
 document.addEventListener('DOMContentLoaded', function() {
     checkExistingLogin();
-    setupNavigation();
-    setupTabs();
-    checkSystemStatus();
+    if (!isAuthenticated) {
+        // Hide all pages except login
+        pages.forEach(page => page.classList.remove('active'));
+        document.getElementById('login-page').classList.add('active');
+        // Optionally, hide nav links except login
+        navLinks.forEach(link => {
+            if (link.getAttribute('data-page') !== 'login') {
+                link.style.display = 'none';
+            } else {
+                link.style.display = '';
+            }
+        });
+    } else {
+        setupNavigation();
+        setupTabs();
+        checkSystemStatus();
+    }
 });
 
 // Check if user is already logged in
@@ -68,14 +82,25 @@ function setupTabs() {
 
 // Show specific page
 function showPage(pageId) {
+    if (!isAuthenticated && pageId !== 'login') {
+        // Force login if not authenticated
+        pages.forEach(page => page.classList.remove('active'));
+        document.getElementById('login-page').classList.add('active');
+        navLinks.forEach(link => {
+            if (link.getAttribute('data-page') !== 'login') {
+                link.style.display = 'none';
+            } else {
+                link.style.display = '';
+            }
+        });
+        return;
+    }
     pages.forEach(page => {
         page.classList.remove('active');
     });
-    
     navLinks.forEach(link => {
         link.classList.remove('active');
     });
-    
     document.getElementById(`${pageId}-page`).classList.add('active');
     document.querySelector(`[data-page="${pageId}"]`).classList.add('active');
 }
