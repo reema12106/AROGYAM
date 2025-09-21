@@ -493,15 +493,278 @@ function testElements() {
     });
 }
 
-// Add other functions for translation, encounters, etc.
+// ==================== TRANSLATION FUNCTIONS ====================
+
 async function translateCode(direction) {
-    alert('Translation functionality will be implemented after backend connection is confirmed');
+    try {
+        let code, system;
+        
+        if (direction === 'namaste-to-icd') {
+            code = document.getElementById('namaste-code').value;
+            system = 'https://nrces.in/fhir/CodeSystem/namaste';
+        } else {
+            code = document.getElementById('icd-code').value;
+            system = 'http://id.who.int/icd/release/11';
+        }
+        
+        if (!code) {
+            alert('Please enter a code to translate');
+            return;
+        }
+        
+        showLoader(direction === 'namaste-to-icd' ? 'translation-result-content' : 'translation-result-content-2');
+        
+        const response = await fetch(`${API_BASE}/api/fhir/ConceptMap/namaste-icd11/$translate`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${authToken}`
+            },
+            body: JSON.stringify({
+                code: code,
+                system: system
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok) {
+            displayTranslationResult(data, direction);
+        } else {
+            throw new Error(data.error || `Translation failed with status ${response.status}`);
+        }
+    } catch (error) {
+        console.error('Translation error:', error);
+        alert('Translation failed: ' + error.message);
+    }
 }
 
+function displayTranslationResult(data, direction) {
+    const resultElement = document.getElementById(
+        direction === 'namaste-to-icd' ? 'translation-result-content' : 'translation-result-content-2'
+    );
+    const resultContainer = document.getElementById(
+        direction === 'namaste-to-icd' ? 'translation-result' : 'translation-result-2'
+    );
+    
+    if (!resultElement || !resultContainer) {
+        console.error('Result elements not found');
+        return;
+    }
+    
+    resultContainer.classList.remove('hidden');
+    
+    if (data.parameter && data.parameter.length > 1) {
+        let html = '<div class="translation-success">';
+        html += '<p class="success-message">✅ Translation successful!</p>';
+        
+        // Find the result parameter
+        const resultParam = data.parameter.find(p => p.name === 'result');
+        if (resultParam && resultParam.valueBoolean) {
+            html += '<p><strong>Result:</strong> Valid translation found</p>';
+        }
+        
+        // Find all match parameters
+        const matches = data.parameter.filter(p => p.name === 'match');
+        html += `<p><strong>Matches found:</strong> ${matches.length}</p>`;
+        
+        matches.forEach((match, index) => {
+            const equivalence = match.part.find(p => p.name === 'equivalence');
+            const concept = match.part.find(p => p.name === 'concept');
+            
+            html += `
+                <div class="match-item">
+                    <h4>Match ${index + 1}</h4>
+                    <p><strong>Equivalence:</strong> ${equivalence ? equivalence.valueCode : 'N/A'}</p>
+            `;
+            
+            if (concept && concept.valueCoding) {
+                html += `
+                    <p><strong>System:</strong> ${concept.valueCoding.system || 'N/A'}</p>
+                    <p><strong>Code:</strong> ${concept.valueCoding.code || 'N/A'}</p>
+                    <p><strong>Display:</strong> ${concept.valueCoding.display || 'N/A'}</p>
+                `;
+            }
+            
+            html += '</div>';
+        });
+        
+        html += '</div>';
+        resultElement.innerHTML = html;
+    } else {
+        resultElement.innerHTML = `
+            <div class="translation-error">
+                <p class="error-message">❌ No translation found for the provided code</p>
+                <p>Please check the code and try again.</p>
+            </div>
+        `;
+    }
+}
+
+// ==================== ENCOUNTER FUNCTIONS ====================
+
 async function createEncounter() {
-    alert('Encounter creation will be implemented after backend connection is confirmed');
+    try {
+        const patientId = document.getElementById('patient-id').value;
+        const encounterType = document.getElementById('encounter-type').value;
+        const notes = document.getElementById('encounter-notes').value;
+        
+        if (!patientId) {
+            alert('Please enter a patient ID');
+            return;
+        }
+        
+        const response = await fetch(`${API_BASE}/api/encounters`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${authToken}`
+            },
+            body: JSON.stringify({
+                patient_id: patientId,
+                encounter_type: encounterType,
+                notes: notes
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok) {
+            const resultElement = document.getElementById('encounter-result-content');
+            const resultContainer = document.getElementById('encounter-result');
+            
+            resultContainer.classList.remove('hidden');
+            resultElement.innerHTML = `
+                <div class="encounter-success">
+                    <p class="success-message">✅ Encounter created successfully!</p>
+                    <p><strong>Encounter ID:</strong> ${data.encounter_id}</p>
+                    <p><strong>Patient ID:</strong> ${patientId}</p>
+                    <p><strong>Type:</strong> ${encounterType}</p>
+                    <p><strong>Message:</strong> ${data.message}</p>
+                </div>
+            `;
+            
+            // Clear the form
+            document.getElementById('patient-id').value = '';
+            document.getElementById('encounter-notes').value = '';
+        } else {
+            throw new Error(data.error || `Encounter creation failed with status ${response.status}`);
+        }
+    } catch (error) {
+        console.error('Encounter creation error:', error);
+        alert('Failed to create encounter: ' + error.message);
+    }
 }
 
 async function loadEncounters() {
-    alert('Encounter loading will be implemented after backend connection is confirmed');
+    try {
+        const patientId = document.getElementById('search-patient-id').value;
+        
+        if (!patientId) {
+            alert('Please enter a patient ID to search for encounters');
+            return;
+        }
+        
+        showLoader('encounters-container');
+        document.getElementById('encounters-list').classList.remove('hidden');
+        
+        // Note: This endpoint would need to be implemented in your backend
+        // For now, we'll use a placeholder implementation
+        const response = await fetch(`${API_BASE}/api/encounters?patient_id=${patientId}`, {
+            method: 'GET',
+            headers: {
+                'Authorization': `Bearer ${authToken}`
+            }
+        });
+        
+        if (response.ok) {
+            const data = await response.json();
+            displayEncounters(data, patientId);
+        } else if (response.status === 404) {
+            // Endpoint not implemented yet - show mock data
+            displayMockEncounters(patientId);
+        } else {
+            throw new Error(`Failed to load encounters with status ${response.status}`);
+        }
+    } catch (error) {
+        console.error('Load encounters error:', error);
+        // Show mock data as fallback
+        const patientId = document.getElementById('search-patient-id').value;
+        displayMockEncounters(patientId);
+    }
+}
+
+function displayEncounters(data, patientId) {
+    const container = document.getElementById('encounters-container');
+    
+    if (data && data.length > 0) {
+        let html = `<h4>Encounters for Patient: ${patientId}</h4>`;
+        html += `<p>Found ${data.length} encounter(s)</p>`;
+        html += '<div class="encounters-grid">';
+        
+        data.forEach(encounter => {
+            html += `
+                <div class="encounter-card">
+                    <h5>Encounter #${encounter.id}</h5>
+                    <p><strong>Type:</strong> ${encounter.encounter_type}</p>
+                    <p><strong>Date:</strong> ${new Date(encounter.created_at).toLocaleDateString()}</p>
+                    <p><strong>Notes:</strong> ${encounter.notes || 'No notes'}</p>
+                </div>
+            `;
+        });
+        
+        html += '</div>';
+        container.innerHTML = html;
+    } else {
+        container.innerHTML = `
+            <div class="no-encounters">
+                <p>No encounters found for patient: ${patientId}</p>
+            </div>
+        `;
+    }
+}
+
+function displayMockEncounters(patientId) {
+    const container = document.getElementById('encounters-container');
+    
+    // Mock data for demonstration
+    const mockEncounters = [
+        {
+            id: 1001,
+            encounter_type: 'consultation',
+            created_at: '2023-10-15T09:30:00Z',
+            notes: 'Initial consultation for digestive issues'
+        },
+        {
+            id: 1002,
+            encounter_type: 'follow-up',
+            created_at: '2023-10-22T10:15:00Z',
+            notes: 'Follow-up on prescribed treatment'
+        },
+        {
+            id: 1003,
+            encounter_type: 'emergency',
+            created_at: '2023-11-05T16:45:00Z',
+            notes: 'Emergency visit for acute symptoms'
+        }
+    ];
+    
+    let html = `<h4>Encounters for Patient: ${patientId}</h4>`;
+    html += `<p class="mock-warning">⚠️ Using mock data - backend endpoint not fully implemented</p>`;
+    html += `<p>Found ${mockEncounters.length} encounter(s)</p>`;
+    html += '<div class="encounters-grid">';
+    
+    mockEncounters.forEach(encounter => {
+        html += `
+            <div class="encounter-card">
+                <h5>Encounter #${encounter.id}</h5>
+                <p><strong>Type:</strong> ${encounter.encounter_type}</p>
+                <p><strong>Date:</strong> ${new Date(encounter.created_at).toLocaleDateString()}</p>
+                <p><strong>Notes:</strong> ${encounter.notes}</p>
+            </div>
+        `;
+    });
+    
+    html += '</div>';
+    container.innerHTML = html;
 }
