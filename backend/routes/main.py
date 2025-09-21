@@ -599,17 +599,29 @@ def fhir_translate():
         }
         
         for mapping in mappings:
+            if system and "icd" in system.lower():
+            # ICD-11 -> NAMASTE
+                coding = {
+                    "system": "https://nrces.in/fhir/CodeSystem/namaste",
+                    "code": mapping['code'],
+                    "display": mapping['display_name']
+                }
+            else:
+            # NAMASTE -> ICD-11
+                coding = {
+                    "system": "http://id.who.int/icd/release/11",
+                    "code": mapping['icd11_code'],
+                    "display": mapping['icd11_display_name']
+                }
+
             result['parameter'].append({
                 "name": "match",
                 "part": [
                     {"name": "equivalence", "valueCode": "equivalent"},
-                    {"name": "concept", "valueCoding": {
-                        "system": "http://id.who.int/icd/release/11",
-                        "code": mapping['icd11_code'],
-                        "display": mapping['icd11_display_name']
-                    }}
+                    {"name": "concept", "valueCoding": coding}
                 ]
-            })
+        })
+
         
         log_audit_event(getattr(request, 'abha_id', 'anonymous'), "fhir_translate", f"Translated code: {code}")
         return jsonify(result)
