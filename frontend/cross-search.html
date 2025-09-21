@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cross-Mapping Search</title>
+    <link rel="stylesheet" href="style.css">
+    <style>
+        body { font-family: Arial, sans-serif; margin: 0; padding: 0; background: #f8f9fa; }
+        .container { max-width: 700px; margin: 40px auto; background: #fff; border-radius: 8px; box-shadow: 0 2px 8px #0001; padding: 32px; }
+        h1 { color: #2c3e50; }
+        .search-bar { display: flex; gap: 8px; margin-bottom: 24px; }
+        .search-bar input, .search-bar select { padding: 8px; font-size: 1rem; border-radius: 4px; border: 1px solid #ccc; }
+        .search-bar button { padding: 8px 16px; font-size: 1rem; border-radius: 4px; border: none; background: #007bff; color: #fff; cursor: pointer; }
+        .search-bar button:hover { background: #0056b3; }
+        .results { margin-top: 24px; }
+        .bundle-entry { background: #f1f3f6; border-radius: 6px; margin-bottom: 18px; padding: 16px; box-shadow: 0 1px 3px #0001; }
+        .coding-group { margin-bottom: 8px; }
+        .coding-item { margin-left: 12px; font-size: 0.98em; }
+        .label { font-weight: bold; color: #007bff; }
+        .no-results { color: #b00; margin-top: 16px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Cross-Mapping Search</h1>
+        <form id="cross-search-form" class="search-bar" onsubmit="return false;">
+            <input type="text" id="cross-search-query" placeholder="Enter NAMASTE name, ICD-11 code, or TM2 code" required>
+            <button type="submit">Search</button>
+        </form>
+        <div id="cross-search-results" class="results"></div>
+    </div>
+    <script src="cross-search.js"></script>
+</body>
+</html>

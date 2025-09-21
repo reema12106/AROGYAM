@@ -280,20 +280,22 @@ def search_conditions():
         if not query or len(query) < 2:
             return jsonify({"error": "Query parameter 'q' required (min 2 characters)"}), 400
 
+
         conn = get_connection()
         cursor = conn.cursor(dictionary=True)
 
-        # Search using FULLTEXT index for better performance
+        # Search using FULLTEXT, LIKE, and exact (case-insensitive) match for display_name and code
         search_sql = """
         SELECT * FROM namaste_codes 
         WHERE MATCH(display_name, category) AGAINST (%s IN NATURAL LANGUAGE MODE)
+        OR LOWER(code) = LOWER(%s)
+        OR LOWER(display_name) = LOWER(%s)
         OR code LIKE %s 
         OR display_name LIKE %s
         LIMIT %s OFFSET %s
         """
-        
         search_pattern = f"%{query}%"
-        cursor.execute(search_sql, (query, search_pattern, search_pattern, limit, offset))
+        cursor.execute(search_sql, (query, query, query, search_pattern, search_pattern, limit, offset))
         conditions = cursor.fetchall()
 
         # Build FHIR Bundle entries
@@ -307,7 +309,6 @@ def search_conditions():
             """
             cursor.execute(mapping_sql, (condition['code'],))
             mappings = cursor.fetchall()
-            
             # Create FHIR Condition resource
             fhir_condition = build_fhir_condition(condition, mappings, patient_id)
             entries.append({
@@ -321,9 +322,11 @@ def search_conditions():
         count_sql = """
         SELECT COUNT(*) as total FROM namaste_codes 
         WHERE MATCH(display_name, category) AGAINST (%s IN NATURAL LANGUAGE MODE)
+        OR LOWER(code) = LOWER(%s)
+        OR LOWER(display_name) = LOWER(%s)
         OR code LIKE %s OR display_name LIKE %s
         """
-        cursor.execute(count_sql, (query, search_pattern, search_pattern))
+        cursor.execute(count_sql, (query, query, query, search_pattern, search_pattern))
         total = cursor.fetchone()['total']
 
         cursor.close()
@@ -428,10 +431,9 @@ def search_icd11():
             n.id as namaste_id
         FROM icd11_mappings m
         JOIN namaste_codes n ON m.namaste_code = n.code
-        WHERE (m.icd11_code LIKE %s OR m.icd11_display_name LIKE %s)
+        WHERE (LOWER(m.icd11_code) = LOWER(%s) OR m.icd11_code LIKE %s OR m.icd11_display_name LIKE %s)
         """
-        
-        params = [f"%{query}%", f"%{query}%"]
+        params = [query, f"%{query}%", f"%{query}%"]
         
         if mapping_type:
             base_sql += " AND m.mapping_type = %s"

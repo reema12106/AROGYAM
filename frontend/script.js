@@ -1,5 +1,61 @@
+// ========== API CLIENT LOGIC (INTEGRATED) ========== //
+const API_BASE = "http://127.0.0.1:5000";
+
+async function apiGet(endpoint, params = {}, token = null) {
+    try {
+        const url = new URL(API_BASE + endpoint, window.location.origin);
+        Object.keys(params).forEach(key => url.searchParams.append(key, params[key]));
+        const options = {
+            method: "GET",
+            headers: {
+                "Content-Type": "application/json",
+                ...(token && { "Authorization": `Bearer ${token}` })
+            }
+        };
+        const response = await fetch(url, options);
+        if (!response.ok) {
+            throw new Error(`GET ${endpoint} failed: ${response.status} ${response.statusText}`);
+        }
+        return await response.json();
+    } catch (error) {
+        console.error(error);
+        throw error;
+    }
+}
+
+async function apiPost(endpoint, body = {}, token = null) {
+    try {
+        const url = API_BASE + endpoint;
+        const options = {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                ...(token && { "Authorization": `Bearer ${token}` })
+            },
+            body: JSON.stringify(body)
+        };
+        const response = await fetch(url, options);
+        if (!response.ok) {
+            throw new Error(`POST ${endpoint} failed: ${response.status} ${response.statusText}`);
+        }
+        return await response.json();
+    } catch (error) {
+        console.error(error);
+        throw error;
+    }
+}
+
+async function searchConditions(query, limit = 10, page = 1, patientId = null, token = null) {
+    return apiGet("/search/conditions", { q: query, limit, page, patient_id: patientId }, token);
+}
+async function getMappingProfile(namasteCode, patientId = null, token = null) {
+    return apiGet(`/mapping-profile/${namasteCode}`, { patient_id: patientId }, token);
+}
+async function searchICD11(query, mappingType = "", limit = 10, patientId = null, token = null) {
+    return apiGet("/search/icd11", { q: query, mapping_type: mappingType, limit, patient_id: patientId }, token);
+}
 // API Base URL - points to your Flask backend
-const API_BASE = 'http://127.0.0.1:5000';
+
 
 // Current authentication state
 let isAuthenticated = false;
@@ -140,54 +196,162 @@ async function checkSystemStatus() {
     }
 }
 
-// Perform search
+
+// Perform search using integrated API client logic
 async function performSearch() {
     const query = document.getElementById('search-query').value;
     const searchType = document.getElementById('search-type').value;
-    
-    console.log('🔍 Starting search:', { query, searchType });
-    
     if (!query || query.length < 2) {
         alert('Please enter at least 2 characters to search');
         return;
     }
-    
+    showLoader('search-results');
     try {
-        showLoader('search-results');
-        let endpoint = `${API_BASE}/api/search/conditions?q=${encodeURIComponent(query)}`;
-        if (searchType === 'icd11') {
-            endpoint = `${API_BASE}/api/search/icd11?q=${encodeURIComponent(query)}`;
+        // Always show all search endpoint results
+        let [namasteBundle, icd11Bundle] = await Promise.all([
+            searchConditions(query, 10, 1, null, authToken),
+            searchICD11(query, '', 10, null, authToken)
+        ]);
+        let mappingProfile = null;
+        // Only call mapping-profile if query is a likely NAMASTE code
+        if (isLikelyNamasteCode(query)) {
+            try {
+                mappingProfile = await getMappingProfile(query, null, authToken);
+            } catch (err) {
+                console.error('Mapping profile fetch failed:', err);
+            }
         }
-        console.log('📡 Calling endpoint:', endpoint);
-        const response = await fetch(endpoint);
-        console.log('✅ Response received. Status:', response.status);
-        const contentType = response.headers.get('content-type');
-        console.log('📋 Content-Type:', contentType);
-        const responseText = await response.text();
-        console.log('📄 Raw response (first 500 chars):', responseText.substring(0, 500));
-        // Try to parse as JSON
-        let data;
-        try {
-            data = JSON.parse(responseText);
-            console.log('📦 Successfully parsed JSON data:', data);
-        } catch (parseError) {
-            console.error('❌ Failed to parse JSON:', parseError);
-            console.log('📄 Full response text:', responseText);
-            throw new Error('Server returned invalid JSON');
-        }
-        if (response.ok) {
-            console.log('🎉 Search successful, calling display function with data:', data);
-            displaySearchResults(data);
-        } else {
-            console.error('❌ Backend returned error:', data);
-            throw new Error(data.error || `Search failed with status ${response.status}`);
-        }
+        displayAllSearchResults({ namasteBundle, icd11Bundle, mappingProfile });
     } catch (error) {
         console.error('❌ Search error:', error);
         alert('Search failed: ' + error.message);
+// Helper to check if a string is likely a NAMASTE code (e.g., starts with 'N' and is numeric)
+function isLikelyNamasteCode(str) {
+    return /^N\d+$/i.test(str);
+}
         const searchResults = document.getElementById('search-results');
         if (searchResults) searchResults.classList.add('hidden');
     }
+}
+
+// Display all search endpoint results in the web page
+function displayAllSearchResults({ namasteBundle, icd11Bundle, mappingProfile }) {
+    console.log('🔎 NAMASTE Bundle:', namasteBundle);
+    console.log('🔎 ICD-11 Bundle:', icd11Bundle);
+    console.log('🔎 Mapping Profile:', mappingProfile);
+    const searchResults = document.getElementById('search-results');
+    if (!searchResults) return;
+    searchResults.classList.remove('hidden');
+    searchResults.innerHTML = '';
+
+    // NAMASTE search
+    searchResults.innerHTML += `<h3>NAMASTE Search Results</h3>`;
+    let foundResults = false;
+    if (namasteBundle && namasteBundle.entry && namasteBundle.entry.length > 0) {
+        foundResults = true;
+    }
+    displaySearchResultsSection(namasteBundle, searchResults);
+
+    // ICD-11 search
+    searchResults.innerHTML += `<h3>ICD-11 Search Results</h3>`;
+    if (icd11Bundle && icd11Bundle.entry && icd11Bundle.entry.length > 0) {
+        foundResults = true;
+    }
+    displaySearchResultsSection(icd11Bundle, searchResults);
+
+    // Mapping profile (if found)
+    if (mappingProfile && mappingProfile.resourceType === 'Condition') {
+        foundResults = true;
+        searchResults.innerHTML += `<h3>Mapping Profile (by Code)</h3>`;
+        displayMappingProfileSection(mappingProfile, searchResults);
+    }
+
+    // If no results at all, show a clear message
+    if (!foundResults) {
+        searchResults.innerHTML += `<div class="no-results"><p>No results found in any search section.</p></div>`;
+    }
+}
+
+// Helper to display a FHIR Bundle section
+function displaySearchResultsSection(bundle, container) {
+    console.log('📦 Rendering bundle:', bundle);
+    if (!bundle || !bundle.entry || bundle.entry.length === 0) {
+        container.innerHTML += `<div class="no-results"><p>No results found.</p></div>`;
+        return;
+    }
+    const bundleInfo = document.createElement('div');
+    bundleInfo.className = 'bundle-info';
+    bundleInfo.innerHTML = `
+        <div class="bundle-header">
+            <p><strong>Resource Type:</strong> ${bundle.resourceType || 'N/A'}</p>
+            <p><strong>Type:</strong> ${bundle.type || 'N/A'}</p>
+            <p><strong>Total Results:</strong> ${bundle.total || bundle.entry.length}</p>
+            ${bundle.pagination ? `<p><strong>Page:</strong> ${bundle.pagination.page} of ${bundle.pagination.pages}</p>` : ''}
+        </div>
+    `;
+    container.appendChild(bundleInfo);
+    const entriesContainer = document.createElement('div');
+    entriesContainer.className = 'bundle-entries';
+    entriesContainer.innerHTML = '<h4>Entries:</h4>';
+    bundle.entry.forEach((entry, index) => {
+        const entryElement = document.createElement('div');
+        entryElement.className = 'bundle-entry';
+        if (entry.resource && entry.resource.resourceType === 'Condition') {
+            const resource = entry.resource;
+            let html = `<div class="entry-header">
+                <span class="entry-number">#${index + 1}</span>
+                <span class="resource-type">${resource.resourceType}</span>
+                <span class="resource-id">ID: ${resource.id || 'N/A'}</span>
+            </div><div class="entry-content"><div class="condition-info"><h4>Condition Details</h4>`;
+            if (resource.clinicalStatus && resource.clinicalStatus.coding) {
+                html += `<p><strong>Clinical Status:</strong> ${resource.clinicalStatus.coding[0].display || resource.clinicalStatus.coding[0].code}</p>`;
+            }
+            if (resource.category && resource.category[0] && resource.category[0].coding) {
+                html += `<p><strong>Category:</strong> ${resource.category[0].coding[0].display || resource.category[0].coding[0].code}</p>`;
+            }
+            // Group codings by system for clarity
+            if (resource.code && resource.code.coding) {
+                html += `<div class="codings-section"><h5>Codings:</h5><div class="coding-list">`;
+                const grouped = {};
+                resource.code.coding.forEach(coding => {
+                    let label = 'Other';
+                    if (coding.system && coding.system.includes('namaste')) label = 'NAMASTE';
+                    else if (coding.system && coding.system.includes('icd')) label = 'ICD-11';
+                    else if (coding.system && coding.system.toLowerCase().includes('tm2')) label = 'TM2';
+                    if (!grouped[label]) grouped[label] = [];
+                    grouped[label].push(coding);
+                });
+                Object.keys(grouped).forEach(label => {
+                    html += `<div class="coding-group"><strong>${label}:</strong>`;
+                    grouped[label].forEach(coding => {
+                        html += `<div class="coding-item"><span class="coding-code">${coding.code || 'N/A'}</span> <span class="coding-display">${coding.display || 'No display text'}</span> <span class="coding-system">[${coding.system || 'Unknown system'}]</span></div>`;
+                    });
+                    html += `</div>`;
+                });
+                html += `</div></div>`;
+            }
+            if (resource.subject) {
+                html += `<p><strong>Subject:</strong> ${resource.subject.reference || 'N/A'}</p>`;
+            }
+            if (resource.extension && resource.extension.length > 0) {
+                html += `<div class="extensions-section"><h5>Extensions:</h5><pre>${JSON.stringify(resource.extension, null, 2)}</pre></div>`;
+            }
+            html += `</div></div>`;
+            entryElement.innerHTML = html;
+        } else {
+            entryElement.innerHTML = `<div class="entry-header"><span class="entry-number">#${index + 1}</span><span class="resource-type">${entry.resource ? entry.resource.resourceType : 'Unknown Resource'}</span></div><div class="entry-content"><pre>${JSON.stringify(entry, null, 2)}</pre></div>`;
+        }
+        entriesContainer.appendChild(entryElement);
+    });
+    container.appendChild(entriesContainer);
+}
+
+// Helper to display a mapping profile section
+function displayMappingProfileSection(profile, container) {
+    const profileDiv = document.createElement('div');
+    profileDiv.className = 'mapping-profile';
+    profileDiv.innerHTML = `<h4>Mapping Profile</h4><pre>${JSON.stringify(profile, null, 2)}</pre>`;
+    container.appendChild(profileDiv);
 }
 
 // Display search results
@@ -358,7 +522,7 @@ async function registerUser() {
     }
     
     try {
-        const response = await fetch(`${API_BASE}/api/auth/register`, {
+    const response = await fetch(`${API_BASE}/auth/register`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
@@ -392,7 +556,7 @@ async function registerUser() {
 // Send OTP
 async function sendOTP(abhaNumber, phoneNumber) {
     try {
-        const response = await fetch(`${API_BASE}/api/auth/send-otp`, {
+    const response = await fetch(`${API_BASE}/auth/send-otp`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
@@ -429,7 +593,7 @@ async function verifyOTP() {
     }
     
     try {
-        const response = await fetch(`${API_BASE}/api/auth/verify-otp`, {
+    const response = await fetch(`${API_BASE}/auth/verify-otp`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
@@ -530,7 +694,7 @@ async function translateCode(direction) {
         
         showLoader(direction === 'namaste-to-icd' ? 'translation-result-content' : 'translation-result-content-2');
         
-        const response = await fetch(`${API_BASE}/api/fhir/ConceptMap/namaste-icd11/$translate`, {
+    const response = await fetch(`${API_BASE}/fhir/ConceptMap/namaste-icd11/$translate`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -630,7 +794,7 @@ async function createEncounter() {
             return;
         }
         
-        const response = await fetch(`${API_BASE}/api/encounters`, {
+    const response = await fetch(`${API_BASE}/encounters`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -686,7 +850,7 @@ async function loadEncounters() {
         
         // Note: This endpoint would need to be implemented in your backend
         // For now, we'll use a placeholder implementation
-        const response = await fetch(`${API_BASE}/api/encounters?patient_id=${patientId}`, {
+    const response = await fetch(`${API_BASE}/encounters?patient_id=${patientId}`, {
             method: 'GET',
             headers: {
                 'Authorization': `Bearer ${authToken}`
